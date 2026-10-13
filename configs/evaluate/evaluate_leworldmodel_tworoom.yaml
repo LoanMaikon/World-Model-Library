@@ -1,11 +1,14 @@
 mode: evaluate
 method: leworldmodel
 
+data:
+  datasets_folder_path: /home/luan/Desktop/wm-datasets
+  dataset: tworoom
+
 meta:
   seed: 2026
 
 planning:
-  env_name: swm/TwoRoom-v1
   horizon: 5
   replanning_horizon: 5
   cem_solver:

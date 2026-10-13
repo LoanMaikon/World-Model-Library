@@ -38,8 +38,8 @@ optimization:
   num_epochs: 10
   optimizer: adamw
   weight_decay:
-    values: [0.001, 0.001]
-    type: linear
+    values: [0.001]
+    type: constant
     interval: epoch
     decay_bias: true
     decay_norm: true
@@ -50,7 +50,7 @@ optimization:
     warmup_fraction: 0.01
   precision: bfloat16
   gradient_clip_norm: 1.0
-  criterion: mse_loss
+  criterion: mse
   sigreg:
     weight: 0.1
     knots: 17
