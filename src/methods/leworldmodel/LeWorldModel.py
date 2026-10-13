@@ -1,3 +1,5 @@
+import os
+
 class LeWorldModel():
     def __init__(self,
                  opened_config,
@@ -25,10 +27,10 @@ class LeWorldModel():
     def train(self):
         pass
 
-    def validate(self):
-        pass
-
     def test(self):
+        pass # calls self._evaluate() with the chosen solver
+
+    def _evaluate(self):
         pass
 
     def _load_config(self):
