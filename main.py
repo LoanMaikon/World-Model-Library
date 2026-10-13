@@ -7,9 +7,9 @@ def main():
     args = get_args()
     try:
         local_rank, world_size = setup_distributed()
-        from src.Model import Model
+        from src.Runner import Runner
 
-        model = Model(
+        runner = Runner(
             config=args.config,
             output_folder=args.output_folder,
             rank=local_rank,
@@ -17,7 +17,7 @@ def main():
             evaluate_state=args.evaluate_state,
         )
 
-        model.train() if not model.is_evaluating() else model.test()
+        runner.train() if not runner.is_evaluating() else runner.test()
     finally:
         cleanup_distributed()
 

@@ -3,7 +3,7 @@ import torch
 import yaml
 import os
 
-class Model():
+class Runner():
     def __init__(self,
                  config,
                  output_folder,
@@ -108,11 +108,18 @@ class Model():
                 raise ValueError(f"'{self.evaluate_state}' does not exist for evaluation.")
 
         elif self.evaluate_state is not None:
-            raise ValueError("--evaluate_state should not be passed when mode is 'train'.")
+            raise ValueError("--evaluate_state should only be passed when mode is 'evaluate'.")
 
     def _load_method(self):
-        match self.mode:
+        method = self.config["method"]
+
+        match method:
+            case "leworldmodel":
+                from src.methods.leworldmodel.LeWorldModel import LeWorldModel
+
+                self.method_class = LeWorldModel
+
             case _:
                 raise NotImplementedError(
-                    f"No implementation registered for mode '{self.mode}'. "
+                    f"No method registered for '{method}'."
                 )
