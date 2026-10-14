@@ -46,7 +46,7 @@ optimization:
   lr:
     values: [0, 0.00005, 0]
     type: warmup_cosine
-    interval: epoch
+    interval: step
     warmup_fraction: 0.01
   precision: bfloat16
   gradient_clip_norm: 1.0

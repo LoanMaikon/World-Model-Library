@@ -1,5 +1,4 @@
 from time import strftime, localtime
-import matplotlib.pyplot as plt
 import json
 import os
 
@@ -34,6 +33,8 @@ def is_main_process():
 def plot_fig(x, x_name, y, y_name, fig_name, output_path):
     if not is_main_process():
         return
+
+    import matplotlib.pyplot as plt
 
     plt.figure()
     plt.plot(x, y)

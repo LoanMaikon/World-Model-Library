@@ -1,14 +1,5 @@
 import math
 
-def group_uses_weight_decay(group):
-    if group.get("is_bias", False) and not group.get("decay_bias", False):
-        return False
-
-    if group.get("is_norm", False) and not group.get("decay_norm", False):
-        return False
-
-    return True
-
 class Scheduler():
     def __init__(self,
                  values,
@@ -133,12 +124,21 @@ class OptimizerScheduler(Scheduler):
 
         self._apply()
 
+    def group_uses_weight_decay(self, group):
+        if group.get("is_bias", False) and not group.get("decay_bias", False):
+            return False
+
+        if group.get("is_norm", False) and not group.get("decay_norm", False):
+            return False
+
+        return True
+
     def _apply(self):
         for group in self.optimizer.param_groups:
             if self.param_group_filter is not None and not self.param_group_filter(group):
                 continue
 
-            if self.parameter == "weight_decay" and not group_uses_weight_decay(group):
+            if self.parameter == "weight_decay" and not self.group_uses_weight_decay(group):
                 group[self.parameter] = 0.0
             elif group.get(f"fix_{self.parameter}", False):
                 group[self.parameter] = group[f"initial_{self.parameter}"]

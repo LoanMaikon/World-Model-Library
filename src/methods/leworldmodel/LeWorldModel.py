@@ -4,6 +4,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from src.dataloaders import load_dataloader
 from src.schedulers import OptimizerScheduler
 from src.optimizers import load_optimizer
+from src.utils import write_on_log
 from copy import deepcopy
 import torch
 import os
@@ -31,10 +32,24 @@ class LeWorldModel():
         self._load_config()
         self._load_state()
 
-        # ...
-
     def train(self):
-        pass
+        for epoch in range(self.start_epoch, self.optimization_num_epochs + 1):
+            self.model.train()
+            self.train_sampler.set_epoch(epoch)
+
+            self._train_epoch(epoch)
+
+            if self.optimization_lr_interval == "epoch":
+                self.lr_scheduler.step()
+            if self.optimization_weight_decay_interval == "epoch":
+                self.wd_scheduler.step()
+
+            self._save_state(epoch)
+
+    def _train_epoch(self, epoch):
+        write_on_log(f"Training epoch {epoch}", self.output_folder)
+
+        # ...
 
     def test(self):
         pass # calls self._evaluate() with the chosen solver
@@ -54,7 +69,8 @@ class LeWorldModel():
                 raise ValueError(f"Unsupported optimization criterion: {self.optimization_criterion}")
 
     def _load_state(self):
-        self.state_path = os.path.join(self.output_folder, "models", "state.pth")
+        self.states_folder = os.path.join(self.output_folder, "states")
+        self.state_path = os.path.join(self.states_folder, "state.pth")
         self.last_epoch = 0
         self.normalization_stats = {}
         self.pretraining_config = deepcopy(self.config)
@@ -62,6 +78,10 @@ class LeWorldModel():
 
         if self.is_evaluating or self.resume:
             path = self.evaluate_state if self.is_evaluating else self.state_path
+            if not self.is_evaluating and not os.path.isfile(path):
+                legacy_path = os.path.join(self.output_folder, "models", "state.pth")
+                if os.path.isfile(legacy_path):
+                    path = legacy_path
             state = load_state(path)
             self.pretraining_config = state["config"]
 
@@ -171,7 +191,7 @@ class LeWorldModel():
 
         self.schedulers = {"lr": self.lr_scheduler, "weight_decay": self.wd_scheduler}
 
-    def _save_state(self, epoch):
+    def _save_state(self, epoch, state_name=None):
         state = create_state(
             model=self.model,
             config=self.pretraining_config,
@@ -187,7 +207,11 @@ class LeWorldModel():
                 "dataset_config": self.data_dataset_config,
             },
         )
-        save_state(state, self.state_path, rank=self.rank)
+        if epoch % self.meta_save_every == 0:
+            state_name = f"state_{epoch}" if state_name is None else state_name
+            save_state(state, self.states_folder, state_name=state_name, rank=self.rank)
+
+        save_state(state, self.states_folder, rank=self.rank)
         self.last_epoch = int(epoch)
         self.start_epoch = self.last_epoch + 1
 
@@ -208,6 +232,7 @@ class LeWorldModel():
                 path=self.dataset_path,
                 normalization_stats=self.normalization_stats,
             )
+
             if self.dataset.get_dim("action") != self.action_dim:
                 raise ValueError("The evaluation dataset action dimension differs from the saved model.")
             return
@@ -313,6 +338,8 @@ class LeWorldModel():
         self.meta_projector_hidden_dim = int(config["meta"]["projector"]["hidden_dim"])
         self.meta_projector_norm = str(config["meta"]["projector"]["norm"])
         self.meta_save_every = int(config["meta"]["save_every"])
+        if self.meta_save_every <= 0:
+            raise ValueError("save_every must be positive.")
         self.optimization_num_epochs = int(config["optimization"]["num_epochs"])
         self.optimization_optimizer = str(config["optimization"]["optimizer"])
         self.optimization_weight_decay_values = list(map(float, config["optimization"]["weight_decay"]["values"]))

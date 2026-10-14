@@ -39,14 +39,15 @@ def create_state(
         "rng_states": rng_states,
     }
 
-def save_state(state, path, rank=0):
+def save_state(state, folder, state_name="state", rank=0):
     rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else rank
 
     if rank != 0:
         return
 
-    path = os.fspath(path)
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    filename = state_name if state_name.endswith(".pth") else f"{state_name}.pth"
+    path = os.path.join(folder, filename)
+    os.makedirs(folder, exist_ok=True)
     torch.save(state, path + ".tmp")
     os.replace(path + ".tmp", path)
 
