@@ -92,7 +92,17 @@ class Runner():
         return False
 
     def _load_device(self):
-        self.device = torch.device(f"cuda:{self.rank}" if torch.cuda.is_available() else "cpu")
+        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+        cuda_available = torch.cuda.is_available()
+
+        if visible_devices and not cuda_available:
+            raise RuntimeError(
+                f"CUDA was requested (CUDA_VISIBLE_DEVICES={visible_devices}), but PyTorch cannot access it. "
+                "Check the selected GPU, the NVIDIA driver, and the PyTorch installation."
+            )
+
+        self.device = torch.device(f"cuda:{self.rank}" if cuda_available and visible_devices != "" else "cpu")
+        print(f"Device: {self.device} (CUDA_VISIBLE_DEVICES={visible_devices})", flush=True)
 
     def _load_config(self):
         with open(self.config_path, "r") as f:

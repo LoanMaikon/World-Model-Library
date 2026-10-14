@@ -27,6 +27,62 @@ DATASETS = {
     },
 }
 
+ENVIRONMENTS = {
+    "tworoom": {
+        "env_name": "swm/TwoRoom-v1",
+        "kwargs": {},
+        "callables": [
+            {"method": "_set_state", "args": {"state": {"value": "proprio"}}},
+            {"method": "_set_goal_state", "args": {"goal_state": {"value": "goal_proprio"}}},
+        ],
+    },
+    "pusht": {
+        "env_name": "swm/PushT-v1",
+        "kwargs": {},
+        "callables": [
+            {"method": "_set_state", "args": {"state": {"value": "state"}}},
+            {"method": "_set_goal_state", "args": {"goal_state": {"value": "goal_state"}}},
+        ],
+    },
+    "reacher": {
+        "env_name": "swm/ReacherDMControl-v0",
+        "kwargs": {"task": "qpos_match"},
+        "callables": [
+            {"method": "set_state", "args": {"qpos": {"value": "qpos"}, "qvel": {"value": "qvel"}}},
+            {"method": "set_target_qpos", "args": {"target_qpos": {"value": "goal_qpos"}}},
+        ],
+    },
+    "cube": {
+        "env_name": "swm/OGBCube-v0",
+        "kwargs": {"env_type": "single", "ob_type": "states", "multiview": False,
+                   "width": 224, "height": 224, "visualize_info": False, "terminate_at_goal": True},
+        "callables": [
+            {"method": "set_state", "args": {"qpos": {"value": "qpos"}, "qvel": {"value": "qvel"}}},
+            {"method": "set_target_pos", "args": {
+                "cube_id": {"value": 0, "in_dataset": False},
+                "target_pos": {"value": "goal_privileged_block_0_pos"},
+                "target_quat": {"value": "goal_privileged_block_0_quat"},
+            }},
+        ],
+    },
+}
+
+def get_environment_config(name):
+    if name not in ENVIRONMENTS:
+        raise ValueError(f"Unsupported evaluation environment: {name}")
+    return deepcopy(ENVIRONMENTS[name])
+
+class ActionNormalizer():
+    def __init__(self, mean, std):
+        self.mean = mean.detach().cpu().numpy()
+        self.std = std.detach().cpu().numpy()
+
+    def transform(self, actions):
+        return (actions - self.mean) / self.std
+
+    def inverse_transform(self, actions):
+        return actions * self.std + self.mean
+
 def get_dataset_config(name, defaults=None):
     if defaults is None:
         if name not in DATASETS:

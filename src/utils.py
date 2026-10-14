@@ -2,6 +2,19 @@ from time import strftime, localtime
 import json
 import os
 
+def get_dtype(precision):
+    import torch
+
+    match precision:
+        case "float32":
+            return torch.float32
+        case "float16":
+            return torch.float16
+        case "bfloat16":
+            return torch.bfloat16
+        case _:
+            raise ValueError(f"Unsupported training precision: {precision}")
+
 def write_on_log(text, output_path):
     if not is_main_process():
         return

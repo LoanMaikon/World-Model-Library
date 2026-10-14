@@ -34,7 +34,16 @@ def get_args():
     if not os.path.isfile(args.config):
         raise ValueError(f"Config file '{args.config}' does not exist.")
 
-    if not is_distributed():
+    if is_distributed():
+        if "cpu" in args.devices:
+            if args.devices != ["cpu"]:
+                raise ValueError("Use --devices cpu for distributed CPU training.")
+            os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        else:
+            if len(args.devices) != int(os.environ["WORLD_SIZE"]):
+                raise ValueError("Pass one CUDA device per distributed process.")
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(device.replace("cuda:", "") for device in args.devices)
+    else:
         device_str = str(args.devices[0])
         os.environ["CUDA_VISIBLE_DEVICES"] = "" if device_str == "cpu" else device_str.replace("cuda:", "")
 
@@ -51,9 +60,11 @@ def setup_distributed():
 
     local_rank = int(os.environ["LOCAL_RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
-    torch.cuda.set_device(local_rank)
+    backend = "gloo" if os.environ.get("CUDA_VISIBLE_DEVICES") == "" else "nccl"
+    if backend == "nccl":
+        torch.cuda.set_device(local_rank)
     dist.init_process_group(
-        backend="nccl",
+        backend=backend,
         init_method="env://"
     )
 

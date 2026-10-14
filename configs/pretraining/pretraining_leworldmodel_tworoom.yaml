@@ -2,11 +2,11 @@ mode: pretraining
 method: leworldmodel
 
 data:
-  datasets_folder_path: /home/luan/Desktop/wm-datasets
+  datasets_folder_path: /home/lmk22/wm-datasets
   dataset: tworoom
-  batch_size: 128
+  batch_size: 64 # 2 gpu
   image_size: 224
-  num_workers: 16
+  num_workers: 8
   prefetch_factor: 1
   persistent_workers: false
   pin_memory: false

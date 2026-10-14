@@ -8,6 +8,29 @@ _NORM_MODULES = (
     nn.RMSNorm,
 )
 
+def get_optimizer_class(optimizer_type):
+    match optimizer_type:
+        case "adamw":
+            return torch.optim.AdamW
+
+        case _:
+            raise ValueError(f"Unsupported optimizer: {optimizer_type}")
+
+def load_planning_optimizer(params, optimizer_type, lr, action_noise=0.0, generator=None):
+    optimizer = get_optimizer_class(optimizer_type)(params, lr=lr)
+
+    if action_noise > 0:
+        def add_noise(optimizer, args, kwargs):
+            with torch.no_grad():
+                for group in optimizer.param_groups:
+                    for param in group["params"]:
+                        noise = torch.randn(param.shape, device=param.device, dtype=param.dtype, generator=generator)
+                        param.add_(noise * action_noise)
+
+        optimizer.register_step_post_hook(add_noise)
+
+    return optimizer
+
 def make_param_groups(
     model,
     weight_decay,
@@ -75,9 +98,4 @@ def load_optimizer(
         fix_lr=fix_lr,
     )
 
-    match optimizer_type:
-        case "adamw":
-            return torch.optim.AdamW(param_groups, lr=lr, weight_decay=weight_decay, **kwargs)
-
-        case _:
-            raise ValueError(f"Unsupported optimizer: {optimizer_type}")
+    return get_optimizer_class(optimizer_type)(param_groups, lr=lr, weight_decay=weight_decay, **kwargs)

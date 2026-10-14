@@ -2,7 +2,7 @@ mode: evaluate
 method: leworldmodel
 
 data:
-  datasets_folder_path: /home/luan/Desktop/wm-datasets
+  datasets_folder_path: /home/lmk22/wm-datasets
   dataset: tworoom
 
 meta:
