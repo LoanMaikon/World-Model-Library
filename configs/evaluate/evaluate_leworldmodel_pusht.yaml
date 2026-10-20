@@ -6,21 +6,19 @@ data:
   dataset: pusht
 
 meta:
-  seed: 2026 # Local reproducibility choice; not specified by the paper.
+  seed: 2026
 
 planning:
-  horizon: 5 # Model steps; 25 environment steps with action_block 5.
+  horizon: 5
   replanning_horizon: 5
   cem_solver:
     use: true
     batch_size: 1
     num_samples: 300
-    num_iterations: 30 # Appendix D: 30 for PushT, 10 for other environments.
+    num_iterations: 30
     num_elites: 30
     var_scale: 1.0
   gradient_solver:
-    # Optional upstream solver, disabled because paper evaluation uses CEM.
-    # https://github.com/lucas-maes/le-wm/blob/8edfeb336732b5f3ce7b8b210d0ba370a09e2cac/config/eval/solver/adam.yaml
     use: false
     batch_size: 1
     num_samples: 100
