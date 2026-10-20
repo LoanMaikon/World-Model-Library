@@ -1,7 +1,8 @@
 from src.methods.leworldmodel.models import Encoder, ActionEncoder, Predictor, Projector, JEPA, SIGReg
 from stable_worldmodel import World, PlanConfig
-from stable_worldmodel.policy import WorldModelPolicy
-from stable_worldmodel.solver import CEMSolver, GradientSolver as WorldModelGradientSolver
+from src.methods.leworldmodel.planning import WorldModelPolicy
+from stable_worldmodel.solver import CEMSolver
+from src.methods.leworldmodel.solver import GradientSolver
 from src.datasets import get_dataset_config, get_environment_config, load_dataset, make_image_transform, ActionNormalizer
 from src.states import create_state, save_state, load_state, restore_state
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -14,12 +15,6 @@ from time import perf_counter
 import numpy as np
 import torch
 import os
-
-class GradientSolver(WorldModelGradientSolver):
-    def init_action(self, n_envs, actions=None):
-        if actions is not None:
-            actions = actions.to(self.device)
-        super().init_action(n_envs, actions)
 
 class LeWorldModel():
     def __init__(self,
@@ -275,6 +270,12 @@ class LeWorldModel():
                     raise ValueError(f"The simulator does not implement '{call['method']}'.")
             if int(np.prod(world.envs.single_action_space.shape)) != self.action_dim:
                 raise ValueError("The simulator action dimension differs from the saved model.")
+            action_space = world.envs.single_action_space
+            normalizer = policy.process["action"]
+            self.model.set_action_bounds(
+                np.tile(normalizer.transform(action_space.low).reshape(-1), self.meta_action_block),
+                np.tile(normalizer.transform(action_space.high).reshape(-1), self.meta_action_block),
+            )
             world.set_policy(policy)
             video = None
             if self.evaluation_save_video:

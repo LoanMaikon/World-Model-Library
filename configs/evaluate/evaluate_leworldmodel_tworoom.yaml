@@ -19,7 +19,7 @@ planning:
     num_elites: 30
     var_scale: 1.0
   gradient_solver:
-    use: true
+    use: false
     batch_size: 1
     num_samples: 100
     num_iterations: 30

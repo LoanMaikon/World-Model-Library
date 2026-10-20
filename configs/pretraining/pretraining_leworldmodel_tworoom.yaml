@@ -4,7 +4,7 @@ method: leworldmodel
 data:
   datasets_folder_path: /home/lmk22/wm-datasets
   dataset: tworoom
-  batch_size: 64 # 2 gpu
+  batch_size: 128
   image_size: 224
   num_workers: 8
   prefetch_factor: 1

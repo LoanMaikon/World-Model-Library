@@ -205,6 +205,13 @@ class JEPA(nn.Module):
         self.projector = projector
         self.pred_proj = pred_proj
         self.context_length = context_length
+        self.register_buffer("action_low", None, persistent=False)
+        self.register_buffer("action_high", None, persistent=False)
+
+    def set_action_bounds(self, low, high):
+        device = next(self.parameters()).device
+        self.action_low = torch.as_tensor(low, device=device, dtype=torch.float32).flatten()
+        self.action_high = torch.as_tensor(high, device=device, dtype=torch.float32).flatten()
 
     def encode(self, batch):
         batch_size, num_frames = batch["pixels"].shape[:2]
@@ -231,33 +238,64 @@ class JEPA(nn.Module):
             )
         return output
 
-    def rollout(self, embeddings, action_sequence):
+    def rollout(self, embeddings, action_sequence, past_actions=None):
         batch_size, num_samples, horizon = action_sequence.shape[:3]
-        embeddings = embeddings[:, None, None].expand(-1, num_samples, 1, -1)
-        embeddings = embeddings.reshape(batch_size * num_samples, 1, -1)
+        if embeddings.ndim == 2:
+            embeddings = embeddings[:, None]
+        history_length = embeddings.size(1)
+        if history_length > 1:
+            if past_actions is None or past_actions.size(1) != history_length - 1:
+                raise ValueError("Each pair of observed frames requires its intervening action block.")
+            past_actions = past_actions[:, None].expand(-1, num_samples, -1, -1)
+            action_sequence = torch.cat([past_actions, action_sequence], dim=2)
+        embeddings = embeddings[:, None].expand(-1, num_samples, -1, -1).flatten(0, 1)
         actions = self.action_encoder(action_sequence.flatten(0, 1))
 
         for step in range(horizon):
-            start = max(0, step + 1 - self.context_length)
+            end = history_length + step
+            start = max(0, end - self.context_length)
             prediction = self.predict(
-                embeddings[:, -self.context_length:],
-                actions[:, start:step + 1],
+                embeddings[:, start:end],
+                actions[:, start:end],
             )[:, -1:]
             embeddings = torch.cat([embeddings, prediction], dim=1)
 
-        return embeddings.reshape(batch_size, num_samples, horizon + 1, -1)
+        return embeddings.reshape(batch_size, num_samples, history_length + horizon, -1)
 
     def get_cost(self, info_dict, action_candidates):
         device = next(self.parameters()).device
-        # Observations stay fixed while the solver optimizes its action candidates.
+
         if "emb" not in info_dict or "goal_emb" not in info_dict:
             with torch.no_grad():
-                pixels = info_dict["pixels"][:, 0, -1:].to(device)
+                pixels = info_dict["pixels"][:, 0, -self.context_length:].to(device)
                 goal = info_dict["goal"][:, 0, -1:].to(device)
-                info_dict["emb"] = self.encode({"pixels": pixels})["emb"][:, -1]
+                embeddings = self.encode({"pixels": pixels})["emb"]
+                info_dict["emb"] = embeddings[:, 0] if embeddings.size(1) == 1 else embeddings
                 info_dict["goal_emb"] = self.encode({"pixels": goal})["emb"][:, -1]
 
-        prediction = self.rollout(info_dict["emb"], action_candidates.to(device))[:, :, -1]
+        action_candidates = action_candidates.to(device)
+        if self.action_low is not None:
+            action_candidates = action_candidates.clamp(min=self.action_low, max=self.action_high)
+
+        embeddings = info_dict["emb"]
+        if embeddings.ndim == 2:
+            prediction = self.rollout(embeddings, action_candidates)[:, :, -1]
+        else:
+            past_actions = info_dict["past_action"][:, 0].to(device)
+            lengths = info_dict.get("history_length")
+            lengths = (
+                lengths[:, 0].to(device=device, dtype=torch.long) if lengths is not None
+                else torch.full((embeddings.size(0),), embeddings.size(1), device=device, dtype=torch.long)
+            )
+            prediction = embeddings.new_empty(*action_candidates.shape[:2], embeddings.size(-1))
+            # Ignore padding for environments that have just reset.
+            for length in lengths.unique().tolist():
+                selected = lengths == length
+                prediction[selected] = self.rollout(
+                    embeddings[selected, -length:],
+                    action_candidates[selected],
+                    past_actions[selected, -(length - 1):] if length > 1 else None,
+                )[:, :, -1]
         return (prediction - info_dict["goal_emb"][:, None]).square().sum(dim=-1)
 
 class AllReduce(torch.autograd.Function):
